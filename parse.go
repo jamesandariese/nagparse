@@ -7,8 +7,8 @@ import (
 )
 
 type NagiosObject struct {
-	name       string
-	properties map[string]string
+	Name       string
+	Properties map[string]string
 }
 
 func isBlankLine(line string) bool {
@@ -26,8 +26,8 @@ func isBlockClose(line string) bool {
 	return strings.TrimSpace(line) == "}"
 }
 
-func getBlock(blockName string, isStatusFile bool, lines <-chan string, out chan<- NagiosObject, typ reflect.Type) {
-	obj := NagiosObject{name: blockName, properties: make(map[string]string, 40)}
+func getBlock(blockName string, isStatusFile bool, lines <-chan string, out chan<- NagiosObject) {
+	obj := NagiosObject{Name: blockName, Properties: make(map[string]string, 40)}
 	splitter := ' '
 	if isStatusFile {
 		splitter = '='
@@ -49,11 +49,11 @@ func getBlock(blockName string, isStatusFile bool, lines <-chan string, out chan
                 if point == -1 {
 			panic("need a key and value pair to unpack: "+line)
 		}
-		obj.properties[line[:point]] = line[point:]
+		obj.Properties[line[:point]] = line[point+1:]
 	}
 }
 
-func getBlockBeginning(line string, lines <-chan string, out chan<- NagiosObject, typ reflect.Type) {
+func getBlockBeginning(line string, lines <-chan string, out chan<- NagiosObject) {
 	trimmed_string := strings.TrimSpace(line)
 
 	if !strings.HasSuffix(trimmed_string, "{") {
@@ -62,13 +62,13 @@ func getBlockBeginning(line string, lines <-chan string, out chan<- NagiosObject
 
 	trimmed_string = strings.TrimSpace(line[:len(line)-1])
 	if strings.IndexAny(trimmed_string, "\t ") != -1 {
-		getBlock(trimmed_string, false, lines, out, typ)
+		getBlock(trimmed_string, false, lines, out)
 	} else {
-		getBlock(trimmed_string, true, lines, out, typ)
+		getBlock(trimmed_string, true, lines, out)
 	}
 }
 
-func parseLines(lines <-chan string, out chan<- NagiosObject, typ reflect.Type) {
+func parseLines(lines <-chan string, out chan<- NagiosObject) {
 	for {
 		line, ok := <-lines
 		if !ok {
@@ -77,17 +77,17 @@ func parseLines(lines <-chan string, out chan<- NagiosObject, typ reflect.Type) 
 		if isBlankLine(line) {
 			continue
 		}
-		getBlockBeginning(line, lines, out, typ)
+		getBlockBeginning(line, lines, out)
 
 	}
 }
 
-func Parse(in io.Reader, out chan<- NagiosObject, typ interface{}) error {
+func Parse(in io.Reader, out chan<- NagiosObject) error {
 	defer func() {
 		close(out)
 	}()
 	lines := make(chan string)
-	go parseLines(lines, out, reflect.TypeOf(typ))
+	go parseLines(lines, out)
 	scanner := bufio.NewScanner(in)
 	for scanner.Scan() {
 		lines <- scanner.Text()
